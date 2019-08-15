@@ -71,6 +71,7 @@ inline std::vector<double> rks_quadrature_integrate(std::shared_ptr<BlockOPoints
     // Build quadrature
     std::vector<double> ret(5);
     ret[0] = C_DDOT(npoints, w, 1, zk, 1);
+
     for (int P = 0; P < npoints; P++) {
         QTp[P] = w[P] * rho_a[P];
     }
@@ -78,6 +79,15 @@ inline std::vector<double> rks_quadrature_integrate(std::shared_ptr<BlockOPoints
     ret[2] = C_DDOT(npoints, QTp, 1, x, 1);
     ret[3] = C_DDOT(npoints, QTp, 1, y, 1);
     ret[4] = C_DDOT(npoints, QTp, 1, z, 1);
+
+    // QM/MM vext contribution: int( - rho * vext )
+    if (fworker->needs_qmmm_vext()){
+        double* vext = block->vext();
+        for (int P = 0; P < npoints; P++) {
+            QTp[P] = -1.0 * QTp[P];
+        }
+        ret[0] = ret[0] +  C_DDOT(npoints, QTp, 1, vext, 1);
+    }
 
     return ret;
 }
@@ -111,6 +121,24 @@ inline void rks_integrator(std::shared_ptr<BlockOPoints> block, std::shared_ptr<
         std::fill(Tp[P], Tp[P] + nlocal, 0.0);
         C_DAXPY(nlocal, 0.5 * v_rho_a[P] * w[P], phi[P], 1, Tp[P], 1);
     }
+
+    // QM/MM external potential contribution
+    if (fworker->needs_qmmm_vext()){
+        double* vext = block->vext();
+        /*
+        printf( "external potential in rks_integrator \n" );
+        for( int i=0; i < sizeof(vext); i++){
+            printf("%f\n",vext[i]);
+        } */
+
+        /* negative sign is to account for negative charge of electron density,
+        factor of 0.5 is because rho_a = 1/2 rho and chain rule derivative is w.r.t. rho_a
+        see Psi4 manual DFT page... */
+        for (int P = 0; P < npoints; P++) {
+            C_DAXPY(nlocal, -0.5* vext[P] * w[P], phi[P], 1, Tp[P], 1);
+        }
+    }
+
     // parallel_timer_off("LSDA Phi_tmp", rank);
 
     // => GGA contribution (symmetrized) <= //

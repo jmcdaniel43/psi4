@@ -71,6 +71,9 @@ void SuperFunctional::common_init() {
     vv10_c_ = 0.0;
     vv10_beta_ = 0.0;
 
+    // include qmmm vext in quadrature
+    needs_qmmm_vext_ = false;
+
     libxc_xc_func_ = false;
     locked_ = false;
 }
@@ -134,6 +137,10 @@ std::shared_ptr<SuperFunctional> SuperFunctional::build_worker() {
         sup->set_grac_x_functional(grac_x_functional_->build_worker());
         sup->set_grac_c_functional(grac_c_functional_->build_worker());
     }
+    if (needs_qmmm_vext_) {
+        sup->needs_qmmm_vext_ = true;
+    }
+
     sup->allocate();
 
     return sup;

@@ -51,7 +51,7 @@ from . import empirical_dispersion
 from . import dft
 from . import mcscf
 from . import response
-
+from . import qmmm
 
 # ATTN NEW ADDITIONS!
 # consult http://psicode.org/psi4manual/master/proc_py.html
@@ -999,6 +999,13 @@ def scf_wavefunction_factory(name, ref_wfn, reference, **kwargs):
     # Figure out functional
     superfunc, disp_type = dft.build_superfunctional(name, (reference in ["RKS", "RHF"]))
 
+
+    # QM/MM preparation
+    if core.get_option('SCF', 'QMMM'):
+        # set the DFT quadrature to include the external potential
+        # workers are initialized upon initialization of Vbase object, so need to do it now
+        superfunc.set_do_qmmm_vext(True)
+
     # Build the wavefunction
     core.prepare_options_for_module("SCF")
     if reference in ["RHF", "RKS"]:
@@ -1359,6 +1366,19 @@ def scf_helper(name, post_scf=True, **kwargs):
         core.print_out("""  PCM does not make use of molecular symmetry: """
                        """further calculations in C1 point group.\n""")
         use_c1 = True
+
+    # QM/MM preparation
+    if core.get_option('SCF', 'QMMM'):
+        # testing phase, only allow OCTREE grid blocking...
+        if core.get_global_option("DFT_BLOCK_SCHEME") != "OCTREE":
+           raise ValidationError(""" QM/MM only implemented for OCTREE blocking scheme in testing phase...\n""")
+        # testing phase, only allow PBE ...
+        if name != 'pbe':
+           raise ValidationError(""" QM/MM only implemented for PBE in testing phase...\n""")
+
+        # here we pass the external potential evaluated on quadrature grid to the DFT machinery....
+        qmmm.grid_interface.pass_quadrature_grid( scf_wfn.V_potential() )
+        #raise ValidationError(""" Done with QM/MM call \n""")
 
     e_scf = scf_wfn.compute_energy()
     for obj in [core, scf_wfn]:

@@ -3958,7 +3958,18 @@ BlockOPoints::BlockOPoints(size_t index, size_t npoints, double *x, double *y, d
     bound();
     populate();
 }
+  //Overload constructor for QM/MM vext assignment
+BlockOPoints::BlockOPoints(size_t index, size_t npoints, double *x, double *y, double *z, double *w, double *vext,
+                           std::shared_ptr<BasisExtents> extents)
+    : index_(index), npoints_(npoints), x_(x), y_(y), z_(z), w_(w), vext_(vext), extents_(extents) {
+    bound();
+    populate();
+}
 BlockOPoints::~BlockOPoints() {}
+
+    //set vext for QM/MM
+void BlockOPoints::set_vext( double *vext ) { *vext_= *vext; }
+
 void BlockOPoints::bound() {
     // Initially: mean center and max spread of point cloud
     double R2 = 0.0;
@@ -4529,6 +4540,10 @@ void OctreeGridBlocker::block() {
     z_ = new double[npoints_];
     w_ = new double[npoints_];
     index_ = new int[npoints_];
+    // QMMM, initialize but don't fill here...
+    vext_ = new double[npoints_];
+   
+    
 
     int index = 0;
     int unique_block = 0;
@@ -4560,8 +4575,12 @@ void OctreeGridBlocker::block() {
     for (size_t A = 0; A < completed_tree.size(); A++) {
         std::vector<int> block = completed_tree[A];
         if (!block.size()) continue;
+//        auto bop =
+//            std::make_shared<BlockOPoints>(A, block.size(), &x_[index], &y_[index], &z_[index], &w_[index], extents_);
+        // QM/MM overloaded constructor
         auto bop =
-            std::make_shared<BlockOPoints>(A, block.size(), &x_[index], &y_[index], &z_[index], &w_[index], extents_);
+            std::make_shared<BlockOPoints>(A, block.size(), &x_[index], &y_[index], &z_[index], &w_[index], &vext_[index], extents_);        
+
         // BlockOPoints construction performs additional pruning. Need to test if any points remain.
         if (bop->local_nbf()) {
             blocks_.push_back(bop);

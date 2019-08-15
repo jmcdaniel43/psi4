@@ -260,6 +260,9 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         options.add_str("PCM_CC_TYPE", "PTE", "PTE");
     }
 
+    /*- QMMM boolean for QM/MM interface -*/
+    options.add_bool("qmmm", false);
+
     if (name == "DETCI" || options.read_globals()) {
         /*- MODULEDESCRIPTION Performs configuration interaction (CI)
         computations of various types, including restricted-active-space

@@ -293,7 +293,11 @@ class HF : public Wavefunction {
     std::shared_ptr<SuperFunctional> functional() const { return functional_; }
 
     /// The DFT Potential object (or null if it has been deleted)
-    std::shared_ptr<VBase> V_potential() const { return potential_; }
+    /// std::shared_ptr<VBase> V_potential() const { return potential_; }
+
+    /// ********** fix this Hack!  This is a terrible hack that lets us modify
+    /// **** the V_potential object at the python level.  This is for testing and should be fixed!
+    std::shared_ptr<VBase> V_potential() { return potential_; }
 
     /// Returns the occupation vectors
     std::shared_ptr<Vector> occupation_a() const;

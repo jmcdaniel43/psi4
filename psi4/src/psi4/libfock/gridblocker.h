@@ -71,6 +71,8 @@ class GridBlocker {
     double* y_;
     double* z_;
     double* w_;
+    // QM/MM
+    double* vext_; 
     int* index_;
     std::vector<std::shared_ptr<BlockOPoints> > blocks_;
 

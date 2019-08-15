@@ -356,6 +356,8 @@ class BlockOPoints {
     SharedVector yvec_;
     SharedVector zvec_;
     SharedVector wvec_;
+    /// External potential on points
+    SharedVector vext_vec_;
 
     /// Pointer to x (does not own)
     double* x_;
@@ -365,6 +367,9 @@ class BlockOPoints {
     double* z_;
     /// Pointer to w (does not own)
     double* w_;
+    /// Pointer to vext (does not own)
+    double* vext_;
+
     /// Relevant shells, local -> global
     std::vector<int> shells_local_to_global_;
     /// Relevant functions, local -> global
@@ -386,7 +391,14 @@ class BlockOPoints {
     BlockOPoints(SharedVector x, SharedVector y, SharedVector z, SharedVector w, std::shared_ptr<BasisExtents> extents);
     BlockOPoints(size_t index, size_t npoints, double* x, double* y, double* z, double* w,
                  std::shared_ptr<BasisExtents> extents);
+    //Constructor for QM/MM
+    BlockOPoints(size_t index, size_t npoints, double* x, double* y, double* z, double* w, double* vext,
+                 std::shared_ptr<BasisExtents> extents);
+    
     virtual ~BlockOPoints();
+
+    //set vext for QM/MM
+    void set_vext( double* vext );
 
     /// Refresh populations (if extents_->delta() changes)
     void refresh() { populate(); }
@@ -408,6 +420,8 @@ class BlockOPoints {
     double* z() const { return z_; }
     /// The weights. You do not own this
     double* w() const { return w_; }
+    /// The external potential.  Don't make this constant, want to modify through this interface.  Not good practice but use for now....
+    double* vext() { return vext_; }
 
     /// Relevant shells, local -> global
     const std::vector<int>& shells_local_to_global() const { return shells_local_to_global_; }

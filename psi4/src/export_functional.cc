@@ -108,6 +108,7 @@ void export_functional(py::module &m) {
         .def("set_vv10_b", &SuperFunctional::set_vv10_b, "Sets the VV10 b parameter.")
         .def("set_vv10_c", &SuperFunctional::set_vv10_c, "Sets the VV10 c parameter.")
         .def("set_do_vv10", &SuperFunctional::set_do_vv10, "Sets whether to do VV10 correction.")
+        .def("set_do_qmmm_vext", &SuperFunctional::set_do_qmmm_vext, "Sets whether to incorportate QM/MM vext in quadrature.")
         .def("set_grac_shift", &SuperFunctional::set_grac_shift, "Sets the GRAC bulk shift value.")
         .def("set_grac_alpha", &SuperFunctional::set_grac_alpha, "Sets the GRAC alpha parameter.")
         .def("set_grac_beta", &SuperFunctional::set_grac_beta, "Sets the GRAC beta parameter.")
@@ -234,6 +235,18 @@ void export_functional(py::module &m) {
                  auto ret = std::make_shared<Vector>("Grid Weights", grid.npoints());
                  C_DCOPY(grid.npoints(), grid.w(), 1, ret->pointer(), 1);
                  return ret;
+             })
+
+        .def("vext",
+             [](BlockOPoints &grid) {
+                 auto ret = std::make_shared<Vector>("Grid Vext", grid.npoints());
+                 C_DCOPY(grid.npoints(), grid.vext(), 1, ret->pointer(), 1);
+                 return ret;
+             })
+
+        .def("set_vext",
+             [](BlockOPoints &grid, std::shared_ptr<Vector> vext ) {
+                 C_DCOPY(grid.npoints(), vext->pointer(), 1, grid.vext(), 1);
              })
         .def("refresh", &BlockOPoints::refresh, "docstring")
         .def("npoints", &BlockOPoints::npoints, "docstring")

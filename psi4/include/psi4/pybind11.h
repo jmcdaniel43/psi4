@@ -40,6 +40,7 @@
 #include <pybind11/stl_bind.h>
 #include <pybind11/operators.h>
 #include <pybind11/eval.h>
+#include <pybind11/numpy.h>
 
 namespace py = pybind11;
 
