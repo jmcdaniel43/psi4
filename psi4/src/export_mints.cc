@@ -1307,6 +1307,7 @@ void export_mints(py::module& m) {
              "Returns the rotational constants [cm^-1] of the molecule")
         .def("print_rotational_constants", &Molecule::print_rotational_constants,
              "Print the rotational constants to output file")
+        .def("set_do_qmmm_vext", &Molecule::set_do_qmmm_vext,"Sets whether to incorporate QM/MM vext in nuclear repulsion energy.")
         .def("nuclear_repulsion_energy", &Molecule::nuclear_repulsion_energy,
              "dipole_field"_a = std::vector<double>(3, 0.0), "Computes nuclear repulsion energy")
         .def("nuclear_repulsion_energy_deriv1", &Molecule::nuclear_repulsion_energy_deriv1,
@@ -1368,6 +1369,20 @@ void export_mints(py::module& m) {
                  return srt;
              },
              "Returns units used to define the geometry, i.e. 'Angstrom' or 'Bohr'")
+
+        .def("vext",
+             [](Molecule &mol) {
+                 auto ret = std::make_shared<Vector>("Nucleii Vext", mol.natom());
+                 C_DCOPY(mol.natom(), mol.vext(), 1, ret->pointer(), 1);
+                 return ret;
+             })
+
+        .def("set_vext",
+             [](Molecule &mol, std::shared_ptr<Vector> vext ) {
+                 C_DCOPY(mol.natom(), vext->pointer(), 1, mol.vext(), 1);
+             })
+
+
         .def("set_units", &Molecule::set_units,
              "Sets units (Angstrom or Bohr) used to define the geometry. Imposes Psi4 physical constants conversion "
              "for input_units_to_au.")

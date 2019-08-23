@@ -189,6 +189,11 @@ class PSI_API Molecule {
     /// Whether this molecule has at least one cartesian entry
     bool cart_;
 
+    // Whether to add QM/MM vext contribution to nuclear repulsion
+    bool needs_qmmm_vext_;
+    // QM/MM vext
+    double* vext_;
+
    public:
     Molecule();
     /// Copy constructor.
@@ -645,6 +650,22 @@ class PSI_API Molecule {
     void set_multiplicity(int mult) { multiplicity_ = mult; }
     /// Get the multiplicity (defined as 2Ms + 1)
     int multiplicity() const { return multiplicity_; }
+
+    /// Get QM/MM info
+    bool needs_qmmm_vext() const { return needs_qmmm_vext_;};
+
+    /// Set QM/MM vext.  If True, initialize vext_ ; not the best practice...
+    void set_do_qmmm_vext(bool do_qmmm_vext) {
+         needs_qmmm_vext_ = do_qmmm_vext;
+         if( needs_qmmm_vext_ ){
+             vext_ = new double[natom()];
+         }
+    }
+    // set vext for QM/MM
+    void set_vext( double *vext ) { *vext_= *vext; }
+
+    /// The external potential.  Don't make this constant, want to modify through this interface.  Not good practice but use for now....
+    double* vext() { return vext_; }
 
     /// Sets the geometry units
     void set_units(GeometryUnits units);

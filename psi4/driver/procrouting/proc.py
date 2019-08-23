@@ -1006,6 +1006,12 @@ def scf_wavefunction_factory(name, ref_wfn, reference, **kwargs):
         # workers are initialized upon initialization of Vbase object, so need to do it now
         superfunc.set_do_qmmm_vext(True)
 
+        # set molecule object to include vext contribution in nuclear repulsion energy
+        ref_wfn.molecule().set_do_qmmm_vext(True)
+        # pass V_ext evaluated at nuclei sites to molecule object of wavefunction object
+        qmmm.grid_interface.pass_nuclei_vext( ref_wfn )    
+    
+
     # Build the wavefunction
     core.prepare_options_for_module("SCF")
     if reference in ["RHF", "RKS"]:
@@ -1377,7 +1383,7 @@ def scf_helper(name, post_scf=True, **kwargs):
            raise ValidationError(""" QM/MM only implemented for PBE in testing phase...\n""")
 
         # here we pass the external potential evaluated on quadrature grid to the DFT machinery....
-        qmmm.grid_interface.pass_quadrature_grid( scf_wfn.V_potential() )
+        qmmm.grid_interface.pass_quadrature_grid_vext( scf_wfn )
         #raise ValidationError(""" Done with QM/MM call \n""")
 
     e_scf = scf_wfn.compute_energy()

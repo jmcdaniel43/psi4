@@ -152,7 +152,9 @@ Molecule::Molecule()
       atom_to_unique_(nullptr),
       // old_symmetry_frame_(0)
       reinterpret_coordentries_(true),
-      lock_frame_(false) {}
+      lock_frame_(false),
+      // QM/MM vext in nuclear repulsion
+      needs_qmmm_vext_(false) {}      
 
 Molecule::~Molecule() {
     clear();
@@ -460,6 +462,17 @@ double Molecule::nuclear_repulsion_energy(const std::array<double, 3> &dipole_fi
     if (dipole_field[0] != 0.0 || dipole_field[1] != 0.0 || dipole_field[2] != 0.0) {
         Vector3 nucdip = nuclear_dipole();
         e += dipole_field[0] * nucdip[0] + dipole_field[1] * nucdip[1] + dipole_field[2] * nucdip[2];
+    }
+
+    // add QM/MM vext contribution if necessary
+    if( needs_qmmm_vext() ){
+       printf( "including vext in nuclear repulsion energy\n");
+
+       for (int i = 0; i < natom(); ++i) {
+           //printf("%f\n",vext_[i]);
+           double Zi = Z(i);
+           e += Zi * vext_[i];
+       }
     }
 
     return e;
