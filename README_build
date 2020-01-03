@@ -1,0 +1,33 @@
+
+Notes on compiling:  psi4 needs gcc version >=4.9, which is not default on even RHEL7 systems (RHEL7 defaults to gcc 4.8.x)
+thus need a more recent gcc to compile, install with conda see 
+http://www.psicode.org/psi4manual/master/build_planning.html#faq-modgcc
+
+something like
+conda create -n gcc72 gxx_linux-64 gcc_linux-64
+
+then run:
+cmake -H. -Bbuild -DPYTHON_INCLUDE_DIR=~/.conda/envs/gcc72/include/ -DPYTHON_EXECUTABLE=~/.conda/envs/gcc72/bin/python -DCMAKE_INSTALL_PREFIX=/nv/hp22/jmcdaniel43/data/Programs/psi4/psi4/bin -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DOpenMP_LIBRARY_DIRS=~/.conda/envs/gcc72/lib/
+
+where 'build' is build directory
+
+other requirements: ICPC version must be at least 2017.0.0 to work with pybind11 2.1.  Need at least intel/17.0 or higher version if using icc/icpc
+
+for RHEL6
+
+Currently Loaded Modulefiles 
+  1) cmake/3.9.1     2) anaconda3/latest    3) mkl/11.0
+
+for RHEL7
+
+Currently Loaded Modules:
+  1) cmake/3.11.1   2) anaconda3/latest 3) intel/19.0  
+
+
+found that build breaks if downloading newer versions of pybind, qcelemental, qcengine with anaconda.
+Seems that this version of Psi4 breaks with pybind2.4.1.x, use pybind2.3.0
+Let Psi4 build the older versions as specified in ./external/upstream/
+might have to change the download urls, for instance i put in pybind2.3.0 by changing
+external/upstream/pybind11/CMakeLists.txt 
+URL https://github.com/pybind/pybind11/archive/v2.3.0.tar.gz
+

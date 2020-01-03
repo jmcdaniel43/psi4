@@ -1005,11 +1005,36 @@ def scf_wavefunction_factory(name, ref_wfn, reference, **kwargs):
         # set the DFT quadrature to include the external potential
         # workers are initialized upon initialization of Vbase object, so need to do it now
         superfunc.set_do_qmmm_vext(True)
-
+        
         # set molecule object to include vext contribution in nuclear repulsion energy
         ref_wfn.molecule().set_do_qmmm_vext(True)
-        # pass V_ext evaluated at nuclei sites to molecule object of wavefunction object
-        qmmm.grid_interface.pass_nuclei_vext( ref_wfn )    
+
+        #******* set flag for testing *********
+        QM_MM_quadrature_test = False
+
+        for key, value in kwargs.items():
+            print("{0} = {1}".format(key, value))       
+
+        # if MMenv in kwargs, this is testing QM_MM quadrature, no potential from PME ...
+        if 'mm_env' in kwargs:
+            QM_MM_quadrature_test = True
+            MMenv = kwargs['mm_env']
+        # make sure required input has been passed in
+        elif ( not 'pme_grid_size' in kwargs ) or ( not 'vexternal_grid' in kwargs ) or ( not 'pmegrid_xyz' in kwargs ):
+            raise ValidationError("Must input  1) pme_grid_size , 2)  vexternal_grid , and 3) pmegrid_xyz to call Psi4 for QM/MM!! ")
+
+        # if testing QM_MM quadrature ...
+        if QM_MM_quadrature_test:
+            qmmm.grid_interface.set_MMfield_internal( MMenv , ref_wfn , flag_nuclear=True ) 
+        else:
+            # get vext_PMEgrid/PMEgrid from kwargs...this should have been passed in
+            pme_grid_size = kwargs['pme_grid_size']
+            vext_tot = kwargs['vexternal_grid']
+            PME_grid_positions = kwargs['pmegrid_xyz']
+            interpolation_method = kwargs['interpolation_method']
+
+            # pass V_ext evaluated at nuclei sites to molecule object of wavefunction object
+            qmmm.grid_interface.pass_nuclei_vext( ref_wfn , pme_grid_size , vext_tot , PME_grid_positions, interpolation_method )    
     
 
     # Build the wavefunction
@@ -1377,14 +1402,31 @@ def scf_helper(name, post_scf=True, **kwargs):
     if core.get_option('SCF', 'QMMM'):
         # testing phase, only allow OCTREE grid blocking...
         if core.get_global_option("DFT_BLOCK_SCHEME") != "OCTREE":
-           raise ValidationError(""" QM/MM only implemented for OCTREE blocking scheme in testing phase...\n""")
+            raise ValidationError(""" QM/MM only implemented for OCTREE blocking scheme in testing phase...\n""")
         # testing phase, only allow PBE ...
         if name != 'pbe':
-           raise ValidationError(""" QM/MM only implemented for PBE in testing phase...\n""")
+            raise ValidationError(""" QM/MM only implemented for PBE in testing phase...\n""")
 
-        # here we pass the external potential evaluated on quadrature grid to the DFT machinery....
-        qmmm.grid_interface.pass_quadrature_grid_vext( scf_wfn )
-        #raise ValidationError(""" Done with QM/MM call \n""")
+        #******* set flag for testing *********
+        QM_MM_quadrature_test = False
+        # if MMenv in kwargs, this is testing QM_MM quadrature, no potential from PME ...
+        if 'mm_env' in kwargs:
+            QM_MM_quadrature_test = True
+
+        # if testing QM_MM quadrature ...
+        if QM_MM_quadrature_test:
+            MMenv = kwargs['mm_env']
+            qmmm.grid_interface.set_MMfield_internal( MMenv , scf_wfn , flag_nuclear=False )
+        else :
+            # get vext_PMEgrid/PMEgrid from kwargs...this should have been passed in, already have a check to make sure these were passed in ...
+            pme_grid_size = kwargs['pme_grid_size']
+            vext_tot = kwargs['vexternal_grid']
+            PME_grid_positions = kwargs['pmegrid_xyz']
+            interpolation_method = kwargs['interpolation_method']
+
+            # here we pass the external potential evaluated on quadrature grid to the DFT machinery....
+            qmmm.grid_interface.pass_quadrature_grid_vext( scf_wfn , pme_grid_size , vext_tot , PME_grid_positions , interpolation_method )
+            #raise ValidationError(""" Done with QM/MM call \n""")
 
     e_scf = scf_wfn.compute_energy()
     for obj in [core, scf_wfn]:

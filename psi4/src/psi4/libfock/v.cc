@@ -1477,6 +1477,7 @@ void UV::compute_V(std::vector<SharedMatrix> ret) {
 
         // => Quadrature values <= //
         functionalq[rank] += C_DDOT(npoints, w, 1, zk, 1);
+
         for (int P = 0; P < npoints; P++) {
             QTap[P] = w[P] * rho_a[P];
             QTbp[P] = w[P] * rho_b[P];
@@ -1490,6 +1491,18 @@ void UV::compute_V(std::vector<SharedMatrix> ret) {
         rhobyq[rank] += C_DDOT(npoints, QTbp, 1, y, 1);
         rhobzq[rank] += C_DDOT(npoints, QTbp, 1, z, 1);
 
+
+        // QM/MM vext contribution: int( - rho * vext )
+        if (fworker->needs_qmmm_vext()){
+            double* vext = block->vext();
+            for (int P = 0; P < npoints; P++) {
+                QTap[P] = -1.0 * QTap[P];
+                QTbp[P] = -1.0 * QTbp[P];
+            }
+            functionalq[rank] += C_DDOT(npoints, QTap, 1, vext, 1);
+            functionalq[rank] += C_DDOT(npoints, QTbp, 1, vext, 1);
+        }
+
         // => LSDA contribution (symmetrized) <= //
         // timer_on("V: LSDA");
         for (int P = 0; P < npoints; P++) {
@@ -1498,7 +1511,23 @@ void UV::compute_V(std::vector<SharedMatrix> ret) {
             C_DAXPY(nlocal, 0.5 * v_rho_a[P] * w[P], phi[P], 1, Tap[P], 1);
             C_DAXPY(nlocal, 0.5 * v_rho_b[P] * w[P], phi[P], 1, Tbp[P], 1);
         }
+
+        // QM/MM external potential contribution
+        if (fworker->needs_qmmm_vext()){
+            double* vext = block->vext();
+
+            /* negative sign is to account for negative charge of electron density,
+             *         factor of 0.5 is because rho_a = 1/2 rho and chain rule derivative is w.r.t. rho_a
+             *                 see Psi4 manual DFT page... */
+            for (int P = 0; P < npoints; P++) {
+                C_DAXPY(nlocal, -0.5* vext[P] * w[P], phi[P], 1, Tap[P], 1);
+                C_DAXPY(nlocal, -0.5* vext[P] * w[P], phi[P], 1, Tbp[P], 1);
+            }
+        }
+
         // timer_off("V: LSDA");
+
+
 
         // => GGA contribution (symmetrized) <= //
         if (ansatz >= 1) {
