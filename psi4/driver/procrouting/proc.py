@@ -1019,9 +1019,9 @@ def scf_wavefunction_factory(name, ref_wfn, reference, **kwargs):
         if 'mm_env' in kwargs:
             QM_MM_quadrature_test = True
             MMenv = kwargs['mm_env']
-        # make sure required input has been passed in
-        elif ( not 'pme_grid_size' in kwargs ) or ( not 'vexternal_grid' in kwargs ) or ( not 'pmegrid_xyz' in kwargs ):
-            raise ValidationError("Must input  1) pme_grid_size , 2)  vexternal_grid , and 3) pmegrid_xyz to call Psi4 for QM/MM!! ")
+        # make sure required input has been passed in ( for last argument, need either 'pmegrid_xyz' or 'box' )
+        elif ( not 'pme_grid_size' in kwargs ) or ( not 'vexternal_grid' in kwargs ) or ( (not 'pmegrid_xyz' in kwargs) and (not 'box' in kwargs) ):
+            raise ValidationError("Must input  1) pme_grid_size , 2)  vexternal_grid , and 3) pmegrid_xyz/box to call Psi4 for QM/MM!! ")
 
         # if testing QM_MM quadrature ...
         if QM_MM_quadrature_test:
@@ -1030,12 +1030,22 @@ def scf_wavefunction_factory(name, ref_wfn, reference, **kwargs):
             # get vext_PMEgrid/PMEgrid from kwargs...this should have been passed in
             pme_grid_size = kwargs['pme_grid_size']
             vext_tot = kwargs['vexternal_grid']
-            PME_grid_positions = kwargs['pmegrid_xyz']
             interpolation_method = kwargs['interpolation_method']
 
-            # pass V_ext evaluated at nuclei sites to molecule object of wavefunction object
-            qmmm.grid_interface.pass_nuclei_vext( ref_wfn , pme_grid_size , vext_tot , PME_grid_positions, interpolation_method )    
+            # There are 2 ways to do interpolation, either in real space, or projecting quadrature grid to PME grid (see QM_MM driver script)
+            # this is controlled by what is input...
+            if 'pmegrid_xyz' in kwargs:
+                # Method 1: real-space interpolation
+                PME_grid_positions = kwargs['pmegrid_xyz']
+                # pass V_ext evaluated at nuclei sites to molecule object of wavefunction object
+                qmmm.grid_interface.pass_nuclei_vext( ref_wfn , pme_grid_size , vext_tot , interpolation_method, pmegrid_xyz=PME_grid_positions )    
+            else:
+                # Method 2: project quadrature to PME grid, interpolate on PME grid
+                box = kwargs['box']
+                # pass V_ext evaluated at nuclei sites to molecule object of wavefunction object
+                qmmm.grid_interface.pass_nuclei_vext( ref_wfn , pme_grid_size , vext_tot , interpolation_method, box=box )
     
+
 
     # Build the wavefunction
     core.prepare_options_for_module("SCF")
@@ -1417,16 +1427,29 @@ def scf_helper(name, post_scf=True, **kwargs):
         if QM_MM_quadrature_test:
             MMenv = kwargs['mm_env']
             qmmm.grid_interface.set_MMfield_internal( MMenv , scf_wfn , flag_nuclear=False )
-        else :
+
+        else:
             # get vext_PMEgrid/PMEgrid from kwargs...this should have been passed in, already have a check to make sure these were passed in ...
             pme_grid_size = kwargs['pme_grid_size']
             vext_tot = kwargs['vexternal_grid']
-            PME_grid_positions = kwargs['pmegrid_xyz']
             interpolation_method = kwargs['interpolation_method']
 
-            # here we pass the external potential evaluated on quadrature grid to the DFT machinery....
-            qmmm.grid_interface.pass_quadrature_grid_vext( scf_wfn , pme_grid_size , vext_tot , PME_grid_positions , interpolation_method )
-            #raise ValidationError(""" Done with QM/MM call \n""")
+            # There are 2 ways to do interpolation, either in real space, or projecting quadrature grid to PME grid (see QM_MM driver script)
+            # this is controlled by what is input...
+            if 'pmegrid_xyz' in kwargs:
+                # Method 1: real-space interpolation
+                PME_grid_positions = kwargs['pmegrid_xyz']
+                # here we pass the external potential evaluated on quadrature grid to the DFT machinery....
+                qmmm.grid_interface.pass_quadrature_grid_vext( scf_wfn , pme_grid_size , vext_tot , interpolation_method, pmegrid_xyz=PME_grid_positions )
+                #raise ValidationError(""" Done with QM/MM call \n""")
+            else:
+                # Method 2: project quadrature to PME grid, interpolate on PME grid
+                box = kwargs['box']
+                # here we pass the external potential evaluated on quadrature grid to the DFT machinery....
+                qmmm.grid_interface.pass_quadrature_grid_vext( scf_wfn , pme_grid_size , vext_tot , interpolation_method, box=box )
+                #raise ValidationError(""" Done with QM/MM call \n""")
+
+
 
     e_scf = scf_wfn.compute_energy()
     for obj in [core, scf_wfn]:

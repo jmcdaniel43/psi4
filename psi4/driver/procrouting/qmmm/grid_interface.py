@@ -1,6 +1,7 @@
 from psi4 import core
 from psi4.driver import constants
 import numpy as np
+from math import *
 from scipy import interpolate
 import copy
 import sys
@@ -105,52 +106,46 @@ def set_blocks_vext( Vpot, Vext ):
 
 #**********************************
 # this subroutine is in charge of getting/passing gridpoints/vext for
-# the one electron potential in the DFT machinery
+# the one electron potential in the DFT machinery.  Input **kwargs determine choice of method:
+#
+# Method 1:  Interpolate in real space using PME_grid_positions (limitation, no PBC, only cubic box ...)
+#
+# Method 2:  Project quadrature grid to PME grid, and interpolate on PME grid
 #
 #  Units:  Work in Bohr within this module to avoid unit errors.
 #  scf_wfn.molecule().xyz(i) returns atomic coordinates in bohr
 #  scf_wfn.V_potential().get_np_xyzw()  returns grid coordinates in bohr
 #**********************************
-def pass_quadrature_grid_vext( wfn , pme_grid_size , vext_tot , PME_grid_positions , interpolation_method ):   
+def pass_quadrature_grid_vext( wfn , pme_grid_size , vext_tot , interpolation_method, **kwargs ):   
 
     #*********  Adding to one electron potential in Hamiltonian **********
     # grid points for quadrature in V_potential
     x, y, z, w = wfn.V_potential().get_np_xyzw()
-
-    #****** test **********
-    # print grid points
-    #for i in range(len(x)):
-    #    print( i, x[i] , y[i] , z[i], w[i] )
-    # external potential on quadrature grid points
-    #V_ext = return_external_V( x , y , z )    
-    # print external V
-    #for i in range(len(V_ext)):
-    #    print( i, V_ext[i] )
-    #**********************
-
-    #************ parse PME_grid , vext before interpolation ...
-    #xmin = np.amin(x); xmax = np.amax(x); ymin = np.amin(x); ymax = np.amax(x); zmin = np.amin(z); zmax = np.amax(z)
-    #PME_parse , vext_parse = trim_shift_PME_grid( PME_grid_positions , vext_tot , xmin , xmax , ymin , ymax , zmin , zmax )
-    #PME_parse = np.array( PME_parse )
-    #vext_parse = np.array( vext_parse )
-
-    print(' interpolating quadature grid .... \n')
-    #*********** now interpolate ....
     quadrature_grid=[]
     for i in range(len(x)):
         quadrature_grid.append( [ x[i] , y[i] , z[i] ] )
     quadrature_grid = np.array( quadrature_grid )
 
-#    V_ext = interpolate.griddata( PME_parse , vext_parse , quadrature_grid , method='linear' )
+    print(' interpolating quadature grid .... \n')
 
-    V_ext = interpolate_PME_grid( pme_grid_size , PME_grid_positions , vext_tot , quadrature_grid , interpolation_method )
+    # get **kwargs to determine interpolation method
+    if 'pmegrid_xyz' in kwargs:
+        # Method 1: real-space interpolation
+        PME_grid_positions = kwargs['pmegrid_xyz']
+        #*********** now interpolate ....
+        V_ext = interpolate_PME_grid( pme_grid_size , vext_tot , quadrature_grid , interpolation_method,  pmegrid_xyz=PME_grid_positions )
+
+    else:
+        # Method 2: interpolation on PME grid
+        box = kwargs['box']
+        inverse_box = calculate_inverse_box_vectors( box )
+        # project to PME grid
+        quadrature_grid_project = project_to_PME_grid( quadrature_grid , inverse_box , pme_grid_size )
+        #*********** now interpolate ....
+        V_ext = interpolate_PME_grid( pme_grid_size , vext_tot , quadrature_grid_project , interpolation_method )
+ 
+
     V_ext = list(V_ext)
-
-#    print(' done interpolating quadature grid .... \n')
-#    print( V_ext )
-#    for i in range(len(V_ext)):
-#       print( i , V_ext[i] )
-#    sys.exit()
 
     flag = set_blocks_vext( wfn.V_potential() , V_ext )
 
@@ -158,67 +153,59 @@ def pass_quadrature_grid_vext( wfn , pme_grid_size , vext_tot , PME_grid_positio
 
 #**********************************
 # this subroutine is in charge of getting/passing gridpoints/vext for
-# both the one electron potential, as well as the nuclear repulsion energy
+# the nuclear repulsion energy   Input **kwargs determine choice of method:
+#
+# Method 1:  Interpolate in real space using PME_grid_positions (limitation, no PBC, only cubic box ...)
+#
+# Method 2:  Project quadrature grid to PME grid, and interpolate on PME grid
 #
 #  Units:  Work in Bohr within this module to avoid unit errors.
 #  scf_wfn.molecule().xyz(i) returns atomic coordinates in bohr
 #  scf_wfn.V_potential().get_np_xyzw()  returns grid coordinates in bohr
 #**********************************
-def pass_nuclei_vext( wfn , pme_grid_size , vext_tot , PME_grid_positions, interpolation_method ):
+def pass_nuclei_vext( wfn , pme_grid_size , vext_tot , interpolation_method, **kwargs ):
 
     #********* Get atom coordinates and pass vext into molecule object
     #print("xyz nuclei")
     x=[]; y=[]; z=[]
     for i in range( wfn.molecule().natom() ):
-        #print( i , scf_wfn.molecule().xyz(i) )
         xyz = wfn.molecule().xyz(i)
         x.append( xyz[0] )
         y.append( xyz[1] )
         z.append( xyz[2] )
 
-#    nuclei_grid = np.array( nuclei_grid )
+        print( i , xyz )
 
-    #******* test
-    # external potential on nuclei
-    #V_ext = return_external_V( x , y , z )
-    #V_ext = np.array(V_ext)
+    sys.exit()
 
-
-    #************ parse PME_grid , vext before interpolation ...
-    #xmin = np.amin(x); xmax = np.amax(x); ymin = np.amin(x); ymax = np.amax(x); zmin = np.amin(z); zmax = np.amax(z)
-    # if only one nuclei, above range won't work...
-    #thresh = 5.0
-    #if ( xmax - xmin ) < thresh:
-    #   xmax = xmax + thresh/2
-    #   xmin = xmin - thresh/2
-    #if ( ymax - ymin ) < thresh:
-    #   ymax = ymax + thresh/2
-    #   ymin = ymin - thresh/2
-    #if ( zmax - zmin ) < thresh:
-    #   zmax = zmax + thresh/2
-    #   zmin = zmin - thresh/2        
-    #PME_parse , vext_parse = trim_shift_PME_grid( PME_grid_positions , vext_tot , xmin , xmax , ymin , ymax , zmin , zmax )
-    #PME_parse = np.array( PME_parse )
-    #vext_parse = np.array( vext_parse )
-
-    print(' interpolating nuclei grid .... \n')
-    #*********** now interpolate ....
     nuclei_grid=[]
     for i in range(len(x)):
         nuclei_grid.append( [ x[i] , y[i] , z[i] ] )
     nuclei_grid = np.array( nuclei_grid )
 
-    #V_ext = interpolate.griddata( PME_parse , vext_parse , nuclei_grid , method='linear' )
+    print(' interpolating nuclei grid .... \n')
 
-    V_ext = interpolate_PME_grid( pme_grid_size , PME_grid_positions , vext_tot , nuclei_grid , interpolation_method )
+    # get **kwargs to determine interpolation method
+    if 'pmegrid_xyz' in kwargs:
+        # Method 1: real-space interpolation
+        PME_grid_positions = kwargs['pmegrid_xyz']
+        #*********** now interpolate ....
+        V_ext = interpolate_PME_grid( pme_grid_size , vext_tot , nuclei_grid , interpolation_method, pmegrid_xyz=PME_grid_positions )
+
+    else:
+        # Method 2: interpolation on PME grid
+        box = kwargs['box']
+        inverse_box = calculate_inverse_box_vectors( box )
+        # project to PME grid
+        nuclei_grid_project = project_to_PME_grid( nuclei_grid , inverse_box , pme_grid_size )
+        #*********** now interpolate ....
+        V_ext = interpolate_PME_grid( pme_grid_size , vext_tot , nuclei_grid_project , interpolation_method )
+
 
     print(' done interpolating nuclei grid .... \n')
 
     # convert to Psi4 vector object
     vext_vector = core.Vector.from_array(V_ext)
-
-    #print( 'Vext in python')
-    #print( V_ext )
 
     flag = wfn.molecule().set_vext(vext_vector)
 
@@ -229,71 +216,126 @@ def pass_nuclei_vext( wfn , pme_grid_size , vext_tot , PME_grid_positions, inter
 # input "interpolation_method" should be set to either :
 #       "interpn"  :: calls  scipy.interpolate.interpn()
 #       "griddata" :: calls  scipy.interpolate.griddata()
+#
+#  Method 1: interpolate in real space 
+#  Method 2: intepolate on PME grid (with projected quadrature points)
+#    which method to use is based on what's in **kwargs
 #*******************************************
-def interpolate_PME_grid( pme_grid_size , PME_grid_positions , vext_tot , interpolate_coords , interpolation_method ):
+def interpolate_PME_grid( pme_grid_size , vext_tot , interpolate_coords , interpolation_method, pad_grid=True, **kwargs ):
 
-    # decide what interpolation methods we're using:
-    if ( interpolation_method == "interpn" ):
-       # using scipy.interpolate.interpn()
-       # need to form new data structures consistent with scipy.interpolate.interpn() input ...
+    # See if we're interpolating in real-space
+    if 'pmegrid_xyz' in kwargs:
+       PME_grid_positions = kwargs['pmegrid_xyz']
+
+       # decide what interpolation methods we're using:
+       if ( interpolation_method == "interpn" ):
+          # using scipy.interpolate.interpn()
+          # need to form new data structures consistent with scipy.interpolate.interpn() input ...
        
-       # ********* this needs to be modified if not cubic grid! *****************
-       xdim = PME_grid_positions[:,2]
-       xdim = xdim[0:pme_grid_size]
-       grid = (xdim , xdim , xdim )     #!!!!!!!!!!!!! cubic grid only !!!!!!!!!!!!!!#
+          # ********* this needs to be modified if not cubic grid! *****************
+          xdim = PME_grid_positions[:,2]
+          xdim = xdim[0:pme_grid_size]
+          grid = (xdim , xdim , xdim )     #!!!!!!!!!!!!! cubic grid only !!!!!!!!!!!!!!#
 
-       vext_tot_3d = np.reshape( vext_tot , ( pme_grid_size , pme_grid_size , pme_grid_size ) )
-       output_interpolation = interpolate.interpn( grid, vext_tot_3d , interpolate_coords , method='linear' )
+          vext_tot_3d = np.reshape( vext_tot , ( pme_grid_size , pme_grid_size , pme_grid_size ) )
+          output_interpolation = interpolate.interpn( grid, vext_tot_3d , interpolate_coords , method='linear' )
 
-    elif ( interpolation_method == "griddata" ):
-       output_interpolation = interpolate.griddata( PME_grid_positions , vext_tot , interpolate_coords , method='linear' )
+       elif ( interpolation_method == "griddata" ):
+          output_interpolation = interpolate.griddata( PME_grid_positions , vext_tot , interpolate_coords , method='linear' )
+       else:
+          raise ValidationError(" interpolation_method must be set to either 'interpn' or 'griddata' ... ")
+
     else:
-       raise ValidationError(" interpolation_method must be set to either 'interpn' or 'griddata' ... ")
+       # interpolating on PME grid, quadrature coordinates should already be projected
+       if pad_grid:
+           # pad grid
+           vext_tot_pad = pad_vext_PME_grid( vext_tot , pme_grid_size )
+           xdim = np.array( [ i for i in range(-1,pme_grid_size+1) ] )
+           grid = (xdim , xdim , xdim )
+           vext_tot_3d = np.reshape( vext_tot_pad , ( pme_grid_size+2 , pme_grid_size+2 , pme_grid_size+2 ) )
+       else:
+           # not padding grid ...
+           xdim = np.array( [ i for i in range(pme_grid_size) ] )
+           grid = (xdim , xdim , xdim )
+           vext_tot_3d = np.reshape( vext_tot , ( pme_grid_size , pme_grid_size , pme_grid_size ) )
+   
+       output_interpolation = interpolate.interpn( grid, vext_tot_3d , interpolate_coords , method='linear' )
 
     return output_interpolation
 
 
 
-#********************************************
-# call this as an intermediate method for interpolating
-# the external potential on the PME grid to the DFT quadrature grid
-#
-# this method trims the list of PME grid points and external potential
-# to only those points which bound the QM quadrature region as specified by
-# xmin < x < max, ymin < y < ymax , zmin < z < zmax
-# input box_a , box_b , box_c are the periodic box vectors
-#********************************************
-def trim_shift_PME_grid( PME_grid_positions , vext_tot , xmin , xmax , ymin , ymax , zmin, zmax ):
-    vext_parse = []
-    PME_grid_parse = []
 
-    # buffer pct
-    buffer_pct = 0.3
-    # add 10% buffer to all boundaries
-    delta_x = xmax - xmin
-    delta_y = ymax - ymin
-    delta_z = zmax - zmin
+#***********************************
+# this method pads the boundaries of vext_tot for interpolation.
+# vext_tot satisfies the PBC of the system, but this is done so that we can avoid PBC in the interpolation.
+# We might have an interpolation point at the edge of the grid, if we're
+# using linear interpolation then we just need one more point to pad the edge
+#    so if vext_tot     is dimension pme_grid_size x pme_grid_size x pme_grid_size,
+#    then  vext_tot_pad is dimension (pme_grid_size + 2) x (pme_grid_size + 2) x (pme_grid_size + 2)
+#    where the padding on either side of the grid is done by using the PBC
+def pad_vext_PME_grid( vext_tot , pme_grid_size ):
+    vext_tot_pad = []
+    for i in range(-1,pme_grid_size+1):
+        i_pbc = ( i + pme_grid_size ) % pme_grid_size  # pbc to find grid point ...
+        for j in range(-1,pme_grid_size+1):
+            j_pbc = ( j + pme_grid_size ) % pme_grid_size  # pbc to find grid point ...
+            for k in range(-1,pme_grid_size+1):
+                k_pbc = ( k + pme_grid_size ) % pme_grid_size  # pbc to find grid point ...    
+                index = i_pbc*pme_grid_size*pme_grid_size + j_pbc*pme_grid_size + k_pbc
+                vext_tot_pad.append( vext_tot[index] )
 
-    # padded boundaries
-    xmin_pad = xmin - delta_x * buffer_pct
-    xmax_pad = xmax + delta_x * buffer_pct
-    ymin_pad = ymin - delta_y * buffer_pct
-    ymax_pad = ymax + delta_y * buffer_pct
-    zmin_pad = zmin - delta_z * buffer_pct
-    zmax_pad = zmax + delta_z * buffer_pct
-
-    # loop over PME grid
-    for i in range(len(PME_grid_positions)):
-        x_grid = PME_grid_positions[i][0]
-        y_grid = PME_grid_positions[i][1]
-        z_grid = PME_grid_positions[i][2]
-
-        # see if grid position is within bounds
-        if ( x_grid > xmin_pad ) and ( x_grid < xmax_pad ) and ( y_grid > ymin_pad ) and ( y_grid < ymax_pad ) and ( z_grid > zmin_pad ) and ( z_grid < zmax_pad ) :
-            # add grid point
-            vext_parse.append( vext_tot[i] )
-            PME_grid_parse.append( [ PME_grid_positions[i][0] , PME_grid_positions[i][1] , PME_grid_positions[i][2] ] )
+    vext_tot_pad = np.array( vext_tot_pad )
+    
+    return vext_tot_pad
 
 
-    return PME_grid_parse , vext_parse
+#*********************************
+# project real space points to PME grid
+# this algorithm is identical to that used in method
+# 'pme_update_grid_index_and_fraction' in OpenMM source code,
+# ReferencePME.cpp.  See comments in ReferencePME.cpp
+# about how algorithm works ...
+#*********************************
+def project_to_PME_grid( real_grid_points , inverse_box , pme_grid_size ):
+    
+    #*************** naive code with loops , let's keep this for readability....
+    #scaled_grid_points=[]
+    #for i in range(real_grid_points.shape[0]):
+    #    xyz_scaled=[]
+    #    for d in range(3):
+    #        t = real_grid_points[i][0] * inverse_box[0][d] + real_grid_points[i][1] * inverse_box[1][d] + real_grid_points[i][2] * inverse_box[2][d]
+    #        t = ( t - floor(t) ) * pme_grid_size
+    #        ti = int(t)
+    #        fraction = t - ti
+    #        xyz_scaled.append( ti % pme_grid_size + fraction )
+    #    scaled_grid_points.append( xyz_scaled )
+    #scaled_grid_points = np.array( scaled_grid_points )
+
+    #************ efficient numpy code
+    scaled_grid_points = np.matmul( real_grid_points , inverse_box )
+    scaled_grid_points = ( scaled_grid_points - np.floor( scaled_grid_points ) ) * pme_grid_size
+    scaled_grid_points = np.mod( scaled_grid_points.astype(int) , pme_grid_size ) + ( scaled_grid_points - scaled_grid_points.astype(int) )
+
+    return scaled_grid_points
+
+
+#**********************************
+# this is identical to OpenMM method in ReferencePME.cpp
+# void invert_box_vectors(const Vec3 boxVectors[3], Vec3 recipBoxVectors[3])
+# assumes triclinic box has specific form.
+#**********************************
+def calculate_inverse_box_vectors( boxVectors ):
+    determinant = boxVectors[0][0] * boxVectors[1][1] * boxVectors[2][2]
+    scale = 1.0/determinant
+    recipBoxVectors=[]
+    recipBoxVectors.append( [ boxVectors[1][1]*boxVectors[2][2], 0, 0 ]  )
+    recipBoxVectors.append( [ -boxVectors[1][0]*boxVectors[2][2], boxVectors[0][0]*boxVectors[2][2], 0 ] )
+    recipBoxVectors.append( [ boxVectors[1][0]*boxVectors[2][1]-boxVectors[1][1]*boxVectors[2][0], -boxVectors[0][0]*boxVectors[2][1], boxVectors[0][0]*boxVectors[1][1] ] )
+    recipBoxVectors = np.array(recipBoxVectors)*scale
+
+    return recipBoxVectors
+
+
+
 
