@@ -174,9 +174,6 @@ def pass_nuclei_vext( wfn , pme_grid_size , vext_tot , interpolation_method, **k
         y.append( xyz[1] )
         z.append( xyz[2] )
 
-        print( i , xyz )
-
-    sys.exit()
 
     nuclei_grid=[]
     for i in range(len(x)):
